@@ -1,0 +1,32 @@
+name: Trello Morning Report
+
+on:
+  schedule:
+    # Jam 00:00 UTC = 07:00 WIB. Ubah sesuai kebutuhan (format cron pakai UTC, bukan WIB!)
+    - cron: "0 0 * * *"
+  workflow_dispatch: {} # biar bisa di-trigger manual dari tab "Actions" di GitHub buat testing
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Kirim laporan Trello ke Discord
+        run: node index.js --now
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+          TRELLO_BOARD_ID: ${{ secrets.TRELLO_BOARD_ID }}
+          TRELLO_LIST_ID: ${{ secrets.TRELLO_LIST_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
