@@ -3,37 +3,53 @@ import axios from "axios";
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
-// Generate a short morning greeting. Supports English ('en') and Indonesian ('id').
-// If `apiKey` is missing or the API call fails, return a simple fallback message.
-async function getMorningGreeting({ apiKey, cardSummary, lang = "id" }) {
-  const fallback = lang === "en"
-    ? "Good morning! Let's tackle today's tasks one step at a time. 💪"
-    : "Semangat pagi! Yuk selesaikan tugas hari ini satu-satu. 💪";
+const FALLBACK = {
+  id: {
+    normal: "Semangat pagi! Yuk selesaikan tugas hari ini satu-satu. 💪",
+    angry: "WOI ada tugas yang overdue tuh, jangan cuma diliatin doang! 😤",
+  },
+  en: {
+    normal: "Good morning! Let's knock out today's tasks one by one. 💪",
+    angry: "Hey, you've got overdue tasks sitting there — stop scrolling and go fix it! 😤",
+  },
+};
 
-  if (!apiKey) return fallback;
+async function getMorningGreeting({ apiKey, dueTodayCount = 0, overdueCount = 0, lang = "id" }) {
+  const isAngry = overdueCount > 0;
+  const langLabel = lang === "en" ? "English" : "Bahasa Indonesia";
+  const fallback = (isAngry ? FALLBACK[lang]?.angry : FALLBACK[lang]?.normal) || FALLBACK.id.normal;
 
-  const prompts = {
-    en: `Write one short (max 20 words) warm, non-exaggerated morning encouragement sentence in English suitable as an opener for a team's Discord message. ${
-      cardSummary ? `Context: ${cardSummary}` : ""
-    } Do not use quotation marks; return only the sentence.`,
-    id: `Buat satu kalimat penyemangat pagi singkat (maks 20 kata), hangat dan tidak berlebihan, cocok untuk pembuka pesan tim di Discord. ${
-      cardSummary ? `Konteks: ${cardSummary}` : ""
-    } Jangan pakai tanda kutip; kembalikan hanya kalimatnya.`,
-  };
+  if (!apiKey) {
+    return fallback;
+  }
 
-  const prompt = prompts[lang] || prompts.id;
+  const toneInstruction = isAngry
+    ? `Nadanya "marah-marah" tapi lucu/receh, kayak lagi ngomel ke temen sendiri karena telat ngerjain tugas — bukan marah beneran, tetap terasa peduli dan menghibur, boleh pakai emoji kesal (😤🔥). Sindir dikit tapi tetap sayang.`
+    : `Nadanya hangat, santai, dan nggak berlebihan.`;
+
+  const context = isAngry
+    ? `Konteks: ada ${overdueCount} tugas yang OVERDUE (telat banget)${
+        dueTodayCount > 0 ? ` dan ${dueTodayCount} tugas deadline hari ini` : ""
+      }.`
+    : dueTodayCount > 0
+    ? `Konteks: ada ${dueTodayCount} tugas deadline hari ini, tidak ada yang overdue.`
+    : `Konteks: tidak ada tugas mendesak hari ini.`;
+
+  const prompt = `Buatkan 1 kalimat pembuka pesan pagi dalam ${langLabel}, singkat (maks 25 kata), cocok jadi pembuka pesan kerja tim di Discord. ${toneInstruction} ${context} Jangan pakai tanda kutip, langsung kalimatnya saja, tanpa penjelasan tambahan.`;
 
   try {
     const { data } = await axios.post(
       `${GEMINI_URL}?key=${apiKey}`,
-      { contents: [{ parts: [{ text: prompt }] }] },
+      {
+        contents: [{ parts: [{ text: prompt }] }],
+      },
       { headers: { "Content-Type": "application/json" } }
     );
 
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     return text || fallback;
   } catch (err) {
-    console.error("Failed to generate Gemini greeting:", err.response?.data || err.message);
+    console.error("Gagal generate pesan Gemini:", err.response?.data || err.message);
     return fallback;
   }
 }
