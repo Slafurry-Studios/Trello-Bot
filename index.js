@@ -11,6 +11,7 @@ const {
   TRELLO_BOARD_ID,
   TRELLO_LIST_ID,
   GEMINI_API_KEY,
+  REMINDER_LANG,
   CRON_SCHEDULE,
   CRON_TIMEZONE,
 } = process.env;
@@ -51,7 +52,7 @@ async function buildMorningEmbed() {
     });
   }
 
-  // Konteks singkat buat prompt Gemini, biar pesannya nyambung sama kondisi hari ini
+  // Short summary used for the greeting prompt so the message matches today's state
   const cardSummary =
     dueToday.length === 0 && overdue.length === 0
       ? "tidak ada tugas mendesak hari ini"
@@ -59,7 +60,11 @@ async function buildMorningEmbed() {
           overdue.length > 0 ? ` dan ${overdue.length} tugas yang overdue` : ""
         }`;
 
-  const greeting = await getMorningGreeting({ apiKey: GEMINI_API_KEY, cardSummary });
+  const greeting = await getMorningGreeting({
+    apiKey: GEMINI_API_KEY,
+    cardSummary,
+    lang: REMINDER_LANG || "id",
+  });
 
   const baseDescription =
     fields.length === 0 ? "Tidak ada kartu yang deadline hari ini. Aman! 🎉" : undefined;
@@ -83,7 +88,7 @@ async function sendMorningReport() {
   }
 }
 
-// Kalau dijalankan dengan `node index.js --now`, langsung kirim sekali (buat testing)
+// If run with `node index.js --now`, send immediately (useful for testing)
 if (process.argv.includes("--now")) {
   sendMorningReport().then(() => process.exit(0));
 } else {
@@ -91,6 +96,6 @@ if (process.argv.includes("--now")) {
   cron.schedule(schedule, sendMorningReport, {
     timezone: CRON_TIMEZONE || "Asia/Jakarta",
   });
-  console.log(`Terjadwal dengan cron "${schedule}" (${CRON_TIMEZONE || "Asia/Jakarta"})`);
-  console.log("Script jalan terus di background, menunggu jadwal...");
+  console.log(`Scheduled with cron "${schedule}" (${CRON_TIMEZONE || "Asia/Jakarta"})`);
+  console.log("Process is running in the background, waiting for the schedule...");
 }
