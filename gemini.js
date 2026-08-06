@@ -15,45 +15,111 @@ const FALLBACK = {
 };
 
 /**
- * Minta Gemini generate 1 kalimat pembuka pagi.
- * Tone berubah otomatis: santai kalau semua aman, "marah-marah" ala bercanda kalau ada tugas overdue.
- * Kalau gagal (API key kosong/error), fallback ke pesan statis biar laporan tetap terkirim.
+ * Minta Gemini generate 1 kalimat pembuka laporan pagi.
+ * Tone berubah otomatis berdasarkan kondisi board.
+ * Kalau gagal (API key kosong/error), fallback ke pesan statis.
  */
-async function getMorningGreeting({ apiKey, dueTodayCount = 0, overdueCount = 0, lang = "id" }) {
-  const isAngry = overdueCount > 0;
-  const langLabel = lang === "en" ? "English" : "Bahasa Indonesia";
-  const fallback = (isAngry ? FALLBACK[lang]?.angry : FALLBACK[lang]?.normal) || FALLBACK.id.normal;
+async function getMorningGreeting({
+  apiKey,
+  dueTodayCount = 0,
+  overdueCount = 0,
+  inProgressCount = 0,
+  lang = "id",
+}) {
+  const localeConfig = {
+    id: {
+      language: "Bahasa Indonesia",
+      fallback: {
+        normal: "Semangat pagi! Yuk selesaikan tugas hari ini satu-satu. 💪",
+        angry: "WOI ada tugas yang overdue tuh, jangan cuma diliatin doang! 😤",
+      },
+    },
+    en: {
+      language: "English",
+      fallback: {
+        normal: "Good morning! Let's knock out today's tasks one by one. 💪",
+        angry: "Hey, you've got overdue tasks waiting—let's get them sorted! 😤",
+      },
+    },
+  };
 
-  if (!apiKey) {
-    return fallback;
-  }
+  const locale = localeConfig[lang] ?? localeConfig.id;
 
-  const toneInstruction = isAngry
-    ? `Nadanya "marah-marah" tapi lucu/receh, kayak lagi ngomel ke temen sendiri karena telat ngerjain tugas — bukan marah beneran, tetap terasa peduli dan menghibur, boleh pakai emoji kesal (😤🔥). Sindir dikit tapi tetap sayang.`
-    : `Nadanya hangat, santai, dan nggak berlebihan.`;
+  const fallback =
+    overdueCount > 0
+      ? locale.fallback.angry
+      : locale.fallback.normal;
 
-  const context = isAngry
-    ? `Konteks: ada ${overdueCount} tugas yang OVERDUE (telat banget)${dueTodayCount > 0 ? ` dan ${dueTodayCount} tugas deadline hari ini` : ""
-    }.`
-    : dueTodayCount > 0
-      ? `Konteks: ada ${dueTodayCount} tugas deadline hari ini, tidak ada yang overdue.`
-      : `Konteks: tidak ada tugas mendesak hari ini.`;
+  if (!apiKey) return fallback;
 
-  const prompt = `Buatkan 1 kalimat pembuka pesan pagi dalam ${langLabel}, singkat (maks 25 kata), cocok jadi pembuka pesan kerja tim di Discord. ${toneInstruction} ${context} Jangan pakai tanda kutip, langsung kalimatnya saja, tanpa penjelasan tambahan.`;
+  const prompt = `
+Kamu adalah Slafurry Bot, asisten internal tim game development Slafurry Studios.
+
+Tulis seluruh jawaban menggunakan ${locale.language}.
+
+Kondisi board hari ini:
+- Tugas overdue: ${overdueCount}
+- Deadline hari ini: ${dueTodayCount}
+- Sedang dikerjakan: ${inProgressCount}
+
+Kepribadian:
+- Santai.
+- Seperti rekan satu tim.
+- Positif.
+- Tidak formal.
+- Kadang receh.
+- Tidak pernah menyebut bahwa kamu AI atau chatbot.
+
+Aturan:
+- Tulis HANYA SATU kalimat.
+- Maksimal 25 kata.
+- Variasikan gaya bahasa setiap kali.
+- Jangan mengarang jumlah tugas.
+- Jangan mengulang angka lebih dari yang diberikan.
+- Kalau ada overdue, boleh sedikit "ngomel" dengan nada bercanda, tapi tetap memberi semangat.
+- Kalau tidak ada overdue, terdengar optimis dan menyenangkan.
+- Bila tidak ada deadline maupun overdue, fokus memberi semangat untuk memulai hari.
+- Gunakan maksimal 2 emoji.
+- Jangan gunakan markdown atau tanda kutip.
+
+Keluarkan HANYA kalimat pembukanya.
+`;
 
   try {
     const { data } = await axios.post(
       `${GEMINI_URL}?key=${apiKey}`,
       {
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 1.2,
+          topP: 0.9,
+          maxOutputTokens: 50,
+        },
       },
-      { headers: { "Content-Type": "application/json" } }
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
 
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    const text =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
     return text || fallback;
   } catch (err) {
-    console.error("Gagal generate pesan Gemini:", err.response?.data || err.message);
+    console.error(
+      "Gagal generate pesan Gemini:",
+      err.response?.data || err.message
+    );
     return fallback;
   }
 }
