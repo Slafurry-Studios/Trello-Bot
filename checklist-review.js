@@ -1,6 +1,6 @@
 import "dotenv/config";
 import axios from "axios";
-import { getCard, getChecklists, isAllChecklistComplete } from "./trello.js";
+import { getCard } from "./trello.js";
 import { getReviewMessage } from "./gemini.js";
 
 const { DISCORD_WEBHOOK_URL, TRELLO_API_KEY, TRELLO_TOKEN, GEMINI_API_KEY, REMINDER_LANG } =
@@ -15,22 +15,16 @@ async function main() {
 
   const trelloParams = { apiKey: TRELLO_API_KEY, token: TRELLO_TOKEN };
 
-  const [card, checklists] = await Promise.all([
-    getCard(cardId, trelloParams),
-    getChecklists(cardId, trelloParams),
-  ]);
-
-  const { complete, total, done } = isAllChecklistComplete(checklists);
-
+  const card = await getCard(cardId, trelloParams);
   console.log(`Kartu: ${card.name}`);
-  console.log(`Checklist: ${done}/${total} tercentang`);
+  console.log(`Due Complete: ${card.dueComplete}`);
 
-  if (!complete) {
-    console.log("Belum semua checklist selesai — notifikasi TIDAK dikirim.");
+  if (!card.dueComplete) {
+    console.log("Card belum di-Mark complete — notifikasi TIDAK dikirim.");
     return;
   }
 
-  console.log("Semua checklist selesai — kirim notifikasi ke Discord...");
+  console.log("Card sudah di-Mark complete — kirim notifikasi ke Discord...");
 
   const labelNames = (card.labels || []).map((l) => l.name).filter(Boolean);
 
@@ -49,9 +43,8 @@ async function main() {
     fields: [
       {
         name: "Kartu",
-        value: `[${card.name}](${card.shortUrl})${
-          labelNames.length > 0 ? "\n" + labelNames.map((l) => `\`${l}\``).join(" ") : ""
-        }`,
+        value: `[${card.name}](${card.shortUrl})${labelNames.length > 0 ? "\n" + labelNames.map((l) => `\`${l}\``).join(" ") : ""
+          }`,
       },
     ],
     timestamp: new Date().toISOString(),
