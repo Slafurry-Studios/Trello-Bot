@@ -14,6 +14,11 @@ const FALLBACK = {
   },
 };
 
+/**
+ * Minta Gemini generate 1 kalimat pembuka pagi.
+ * Tone berubah otomatis: santai kalau semua aman, "marah-marah" ala bercanda kalau ada tugas overdue.
+ * Kalau gagal (API key kosong/error), fallback ke pesan statis biar laporan tetap terkirim.
+ */
 async function getMorningGreeting({ apiKey, dueTodayCount = 0, overdueCount = 0, lang = "id" }) {
   const isAngry = overdueCount > 0;
   const langLabel = lang === "en" ? "English" : "Bahasa Indonesia";
@@ -54,4 +59,34 @@ async function getMorningGreeting({ apiKey, dueTodayCount = 0, overdueCount = 0,
   }
 }
 
-export { getMorningGreeting };
+export { getMorningGreeting, getReviewMessage };
+
+/**
+ * Generate 1-2 kalimat pengumuman kalau ada kartu yang siap direview.
+ * Fallback ke pesan statis kalau API key kosong/error.
+ */
+async function getReviewMessage({ apiKey, cardName, listName, labels = [], lang = "id" }) {
+  const langLabel = lang === "en" ? "English" : "Bahasa Indonesia";
+  const labelText = labels.length > 0 ? ` (role: ${labels.join(", ")})` : "";
+  const fallback =
+    lang === "en"
+      ? `The card "${cardName}" is ready for review — all checklist items are done!`
+      : `Kartu "${cardName}" udah siap direview nih, semua checklist-nya beres! ✅`;
+
+  if (!apiKey) return fallback;
+
+  const prompt = `Buatkan 1-2 kalimat pengumuman singkat dalam ${langLabel} buat pesan Discord tim, isinya kasih tau bahwa kartu Trello berjudul "${cardName}"${labelText} sudah pindah ke list "${listName}" dan semua checklist-nya sudah selesai dicentang, jadi siap untuk direview. Nadanya positif dan santai, boleh pakai emoji secukupnya. Jangan pakai tanda kutip, langsung kalimatnya saja.`;
+
+  try {
+    const { data } = await axios.post(
+      `${GEMINI_URL}?key=${apiKey}`,
+      { contents: [{ parts: [{ text: prompt }] }] },
+      { headers: { "Content-Type": "application/json" } }
+    );
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    return text || fallback;
+  } catch (err) {
+    console.error("Gagal generate pesan review dari Gemini:", err.response?.data || err.message);
+    return fallback;
+  }
+}
