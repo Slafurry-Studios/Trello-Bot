@@ -2,8 +2,9 @@ name: Trello Morning Report
 
 on:
   schedule:
-    - cron: "0 0 * * *"
-  workflow_dispatch: {} 
+    # Jam 23:00 UTC = 07:00 WITA (WITA = UTC+8, jadi jam WITA dikurangi 8 buat dapet UTC)
+    - cron: "0 23 * * *"
+  workflow_dispatch: {} # biar bisa di-trigger manual dari tab "Actions" di GitHub buat testing
 
 jobs:
   send-report:
@@ -30,3 +31,5 @@ jobs:
           TRELLO_LIST_ID: ${{ secrets.TRELLO_LIST_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           REMINDER_LANG: ${{ secrets.REMINDER_LANG }}
+
+          

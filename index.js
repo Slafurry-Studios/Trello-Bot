@@ -33,25 +33,26 @@ async function buildMorningEmbed() {
   const { dueToday, overdue, inProgress } = categorizeCards(cards);
 
   const fields = [];
+  const timezone = CRON_TIMEZONE || "Asia/Jakarta";
 
   if (overdue.length > 0) {
     fields.push({
       name: `⚠️ Overdue (${overdue.length})`,
-      value: overdue.map((c) => formatCardLine(c, listNameById)).join("\n"),
+      value: overdue.map((c) => formatCardLine(c, listNameById, timezone)).join("\n"),
     });
   }
 
   if (dueToday.length > 0) {
     fields.push({
       name: `🔔 Deadline Hari Ini (${dueToday.length})`,
-      value: dueToday.map((c) => formatCardLine(c, listNameById)).join("\n"),
+      value: dueToday.map((c) => formatCardLine(c, listNameById, timezone)).join("\n"),
     });
   }
 
   if (inProgress.length > 0) {
     fields.push({
       name: `🛠️ Sedang Dikerjakan (${inProgress.length})`,
-      value: inProgress.map((c) => formatCardLine(c, listNameById)).join("\n"),
+      value: inProgress.map((c) => formatCardLine(c, listNameById, timezone)).join("\n"),
     });
   }
 
