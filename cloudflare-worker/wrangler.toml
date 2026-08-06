@@ -3,6 +3,6 @@ main = "worker.js"
 compatibility_date = "2024-11-01"
 
 [vars]
-GITHUB_OWNER = "muhammadzaini213"
+GITHUB_OWNER = "Slafurry-Studios"
 GITHUB_REPO = "Trello-Bot"
 TARGET_LIST_NAME = "👀 In Review / Testing"

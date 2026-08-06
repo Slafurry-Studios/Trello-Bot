@@ -25,6 +25,20 @@ async function getCards({ apiKey, token, boardId, listId }) {
   return data;
 }
 
+async function getCard(cardId, { apiKey, token }) {
+  const { data } = await axios.get(`${BASE_URL}/cards/${cardId}`, {
+    params: {
+      key: apiKey,
+      token,
+      fields: "name,due,dueComplete,shortUrl,idList",
+      labels: "true",
+      label_fields: "name,color",
+    },
+  });
+
+  return data;
+}
+
 /**
  * Ambil nama-nama list di board, dipakai untuk mapping idList -> nama list
  */
@@ -109,4 +123,4 @@ function formatCardLine(card, listNameById, timezone) {
   return `• [${card.name}](${card.shortUrl}) — _${listName}_${labelText}${dateText}`;
 }
 
-export { getCards, getLists, categorizeCards, formatCardLine };
+export { getCard, getCards, getLists, categorizeCards, formatCardLine };
