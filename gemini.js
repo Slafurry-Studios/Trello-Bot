@@ -1,8 +1,8 @@
 import axios from "axios";
 
 const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
+  
 const FALLBACK = {
   id: {
     normal: "Semangat pagi! Yuk selesaikan tugas hari ini satu-satu. 💪",
