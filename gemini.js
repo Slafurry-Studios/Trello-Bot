@@ -2,7 +2,7 @@ import axios from "axios";
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
-  
+
 const FALLBACK = {
   id: {
     normal: "Semangat pagi! Yuk selesaikan tugas hari ini satu-satu. 💪",
@@ -33,12 +33,11 @@ async function getMorningGreeting({ apiKey, dueTodayCount = 0, overdueCount = 0,
     : `Nadanya hangat, santai, dan nggak berlebihan.`;
 
   const context = isAngry
-    ? `Konteks: ada ${overdueCount} tugas yang OVERDUE (telat banget)${
-        dueTodayCount > 0 ? ` dan ${dueTodayCount} tugas deadline hari ini` : ""
-      }.`
+    ? `Konteks: ada ${overdueCount} tugas yang OVERDUE (telat banget)${dueTodayCount > 0 ? ` dan ${dueTodayCount} tugas deadline hari ini` : ""
+    }.`
     : dueTodayCount > 0
-    ? `Konteks: ada ${dueTodayCount} tugas deadline hari ini, tidak ada yang overdue.`
-    : `Konteks: tidak ada tugas mendesak hari ini.`;
+      ? `Konteks: ada ${dueTodayCount} tugas deadline hari ini, tidak ada yang overdue.`
+      : `Konteks: tidak ada tugas mendesak hari ini.`;
 
   const prompt = `Buatkan 1 kalimat pembuka pesan pagi dalam ${langLabel}, singkat (maks 25 kata), cocok jadi pembuka pesan kerja tim di Discord. ${toneInstruction} ${context} Jangan pakai tanda kutip, langsung kalimatnya saja, tanpa penjelasan tambahan.`;
 
@@ -65,28 +64,113 @@ export { getMorningGreeting, getReviewMessage };
  * Generate 1-2 kalimat pengumuman kalau ada kartu yang siap direview.
  * Fallback ke pesan statis kalau API key kosong/error.
  */
-async function getReviewMessage({ apiKey, cardName, listName, labels = [], lang = "id" }) {
-  const langLabel = lang === "en" ? "English" : "Bahasa Indonesia";
-  const labelText = labels.length > 0 ? ` (role: ${labels.join(", ")})` : "";
-  const fallback =
-    lang === "en"
-      ? `The card "${cardName}" is ready for review — all checklist items are done!`
-      : `Kartu "${cardName}" udah siap direview nih! ✅`;
+/**
+ * Generate 1-2 kalimat pengumuman kalau ada kartu yang siap direview.
+ * Fallback ke pesan statis kalau API key kosong/error.
+ */
+async function getReviewMessage({
+  apiKey,
+  cardName,
+  cardDescription = "",
+  listName,
+  labels = [],
+  lang = "id",
+}) {
+  const localeConfig = {
+    id: {
+      language: "Bahasa Indonesia",
+      style:
+        "Santai, akrab, dan seperti rekan satu tim yang sedang ngobrol di Discord.",
+      fallback: `${cardName} udah siap direview nih! 👀`,
+    },
+    en: {
+      language: "English",
+      style:
+        "Friendly and casual, like a teammate chatting on Discord.",
+      fallback: `${cardName} is ready for review! 👀`,
+    },
+  };
 
-  if (!apiKey) return fallback;
+  const locale = localeConfig[lang] ?? localeConfig.id;
 
-  const prompt = `Buatkan 1-2 kalimat pengumuman singkat dalam ${langLabel} buat pesan Discord tim, isinya kasih tau bahwa kartu Trello berjudul "${cardName}"${labelText} sudah pindah ke list "${listName}" dan semua checklist-nya sudah selesai dicentang, jadi siap untuk direview. Nadanya positif dan santai, boleh pakai emoji secukupnya. Jangan pakai tanda kutip, langsung kalimatnya saja.`;
+  if (!apiKey) return locale.fallback;
+
+  const labelText =
+    labels.length > 0 ? labels.join(", ") : "Tidak ada";
+
+  const prompt = `
+Kamu adalah Slafurry Bot, bot Discord internal untuk tim game development Slafurry Studios.
+
+Tulis seluruh jawaban menggunakan ${locale.language}.
+
+Kepribadian:
+- ${locale.style}
+- Positif.
+- Kadang boleh sedikit bercanda.
+- Tidak formal.
+- Tidak pernah menyebut bahwa kamu AI, chatbot, atau bot.
+- Jangan menjelaskan proses berpikirmu.
+
+Informasi kartu:
+- Nama: ${cardName}
+- Deskripsi: ${cardDescription || "(Tidak ada deskripsi)"}
+- Label: ${labelText}
+- List: ${listName}
+
+Tugas:
+Umumkan bahwa kartu tersebut sudah siap direview.
+
+Aturan:
+- Panjang 1-2 kalimat saja.
+- Maksimal sekitar 45 kata.
+- Bereaksi terhadap nama atau deskripsi kartu bila memungkinkan.
+- Kalau kartunya terlihat besar atau penting, boleh terdengar lebih antusias.
+- Kalau nama kartunya unik atau lucu, boleh kasih candaan ringan.
+- Jangan mengarang detail teknis yang tidak ada.
+- Jangan hanya mengulang nama kartu.
+- Variasikan gaya bahasa setiap kali.
+- Gunakan maksimal 2 emoji.
+- Tutup dengan ajakan singkat agar tim mulai review.
+- Jangan gunakan markdown, bullet list, ataupun tanda kutip.
+
+Keluarkan HANYA isi pesannya.
+`;
 
   try {
     const { data } = await axios.post(
       `${GEMINI_URL}?key=${apiKey}`,
-      { contents: [{ parts: [{ text: prompt }] }] },
-      { headers: { "Content-Type": "application/json" } }
+      {
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 1.2,
+          topP: 0.9,
+          maxOutputTokens: 80,
+        },
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    return text || fallback;
+
+    const text =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+    return text || locale.fallback;
   } catch (err) {
-    console.error("Gagal generate pesan review dari Gemini:", err.response?.data || err.message);
-    return fallback;
+    console.error(
+      "Gagal generate pesan review dari Gemini:",
+      err.response?.data || err.message
+    );
+    return locale.fallback;
   }
 }
