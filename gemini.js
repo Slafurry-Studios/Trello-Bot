@@ -71,7 +71,7 @@ async function getReviewMessage({ apiKey, cardName, listName, labels = [], lang 
   const fallback =
     lang === "en"
       ? `The card "${cardName}" is ready for review — all checklist items are done!`
-      : `Kartu "${cardName}" udah siap direview nih, semua checklist-nya beres! ✅`;
+      : `Kartu "${cardName}" udah siap direview nih! ✅`;
 
   if (!apiKey) return fallback;
 
