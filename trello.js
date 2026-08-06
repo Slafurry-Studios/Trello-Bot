@@ -2,9 +2,7 @@ import axios from "axios";
 
 const BASE_URL = "https://api.trello.com/1";
 
-/**
- * Ambil semua kartu dari board (atau dari satu list spesifik kalau listId diisi)
- */
+
 async function getCards({ apiKey, token, boardId, listId }) {
   const url = listId
     ? `${BASE_URL}/lists/${listId}/cards`
@@ -14,16 +12,16 @@ async function getCards({ apiKey, token, boardId, listId }) {
     params: {
       key: apiKey,
       token: token,
-      fields: "name,due,dueComplete,shortUrl,idList",
+      fields: "name,due,dueComplete,start,shortUrl,idList",
+      labels: "true",
+      label_fields: "name,color",
     },
   });
 
   return data;
 }
 
-/**
- * Ambil nama-nama list di board, dipakai untuk mapping idList -> nama list
- */
+
 async function getLists({ apiKey, token, boardId }) {
   const { data } = await axios.get(`${BASE_URL}/boards/${boardId}/lists`, {
     params: { key: apiKey, token: token, fields: "name" },
@@ -31,10 +29,7 @@ async function getLists({ apiKey, token, boardId }) {
   return data;
 }
 
-/**
- * Filter kartu: yang deadline-nya hari ini, dan yang udah lewat deadline (overdue)
- */
-function splitCardsByDueDate(cards) {
+function categorizeCards(cards) {
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfToday = new Date(startOfToday);
@@ -42,19 +37,40 @@ function splitCardsByDueDate(cards) {
 
   const dueToday = [];
   const overdue = [];
+  const inProgress = [];
 
   for (const card of cards) {
-    if (!card.due || card.dueComplete) continue;
-    const dueDate = new Date(card.due);
+    if (card.dueComplete) continue;
 
-    if (dueDate < startOfToday) {
-      overdue.push(card);
-    } else if (dueDate >= startOfToday && dueDate < endOfToday) {
-      dueToday.push(card);
+    const dueDate = card.due ? new Date(card.due) : null;
+    const startDate = card.start ? new Date(card.start) : null;
+
+    if (dueDate) {
+      if (dueDate < startOfToday) {
+        overdue.push(card);
+        continue;
+      }
+      if (dueDate >= startOfToday && dueDate < endOfToday) {
+        dueToday.push(card);
+        continue;
+      }
+    }
+
+    if (startDate && startDate <= now) {
+      inProgress.push(card);
     }
   }
 
-  return { dueToday, overdue };
+  return { dueToday, overdue, inProgress };
 }
 
-export { getCards, getLists, splitCardsByDueDate };
+function formatCardLine(card, listNameById) {
+  const labelText =
+    card.labels && card.labels.length > 0
+      ? " " + card.labels.map((l) => `\`${l.name || l.color}\``).join(" ")
+      : "";
+  const listName = listNameById[card.idList] || "?";
+  return `• [${card.name}](${card.shortUrl}) — _${listName}_${labelText}`;
+}
+
+export { getCards, getLists, categorizeCards, formatCardLine };
