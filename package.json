@@ -2,10 +2,10 @@
   "name": "trello-discord-webhook",
   "version": "1.0.0",
   "description": "Kirim info Trello ke Discord tiap pagi lewat webhook",
-  "main": "index.js",
+  "main": "src/commands/index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node src/commands/index.js"
   },
   "dependencies": {
     "node-cron": "^3.0.3",

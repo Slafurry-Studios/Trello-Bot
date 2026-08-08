@@ -1,8 +1,8 @@
 import "dotenv/config";
 import axios from "axios";
 import cron from "node-cron";
-import { getCards, getLists, categorizeCards, formatCardLine } from "./trello.js";
-import { getMorningGreeting } from "./gemini.js";
+import { getCards, getLists, categorizeCards, formatCardLine } from "../lib/trello.js";
+import { getMorningGreeting } from "../lib/gemini-morning.js";
 
 const {
   DISCORD_WEBHOOK_URL,

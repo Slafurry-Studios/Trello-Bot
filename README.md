@@ -36,15 +36,15 @@ The script runs continuously and posts according to the configured cron schedule
 ## Run once (manual test)
 
 ```bash
-node index.js --now
+node src/commands/index.js --now
 ```
 
 ## Review notification helper
 
-Use `checklist-review.js` to send a review-ready notification for a specific Trello card:
+Use `src/commands/checklist-review.js` to send a review-ready notification for a specific Trello card:
 
 ```bash
-node checklist-review.js <cardId>
+node src/commands/checklist-review.js <cardId>
 ```
 
 This script fetches the card from Trello, generates a review message via Gemini when available, and posts it to the configured Discord webhook.
@@ -61,17 +61,19 @@ Set `CRON_SCHEDULE` in `env.example` or your `.env` file. Examples:
 
 Because this is a simple Node script (not a full Discord gateway bot), you can host it in several ways:
 
-- VPS + `pm2`: `pm2 start index.js --name trello-webhook`
-- System cron: run `node index.js --now` from crontab
-- GitHub Actions scheduled workflow: run `node index.js --now` on a schedule
+- VPS + `pm2`: `pm2 start src/commands/index.js --name trello-webhook`
+- System cron: run `node src/commands/index.js --now` from crontab
+- GitHub Actions scheduled workflow: run `node src/commands/index.js --now` on a schedule
 - Hosting platforms such as Railway or Render
 
 ## Project files
 
-- `index.js` — main scheduled morning report sender
-- `checklist-review.js` — review-ready card notification helper
-- `trello.js` — Trello API helpers
-- `gemini.js` — Gemini prompt generation helpers
+- `src/commands/index.js` — scheduled morning report sender implementation
+- `src/commands/checklist-review.js` — review-ready notification implementation
+- `src/lib/trello.js` — Trello API helpers
+- `src/lib/gemini.js` — Gemini prompt helpers barrel export
+- `src/lib/gemini-morning.js` — Gemini morning greeting helper
+- `src/lib/gemini-review.js` — Gemini review message helper
 - `env.example` — sample environment variable file
 - `cloudflare-worker/` — optional Cloudflare Worker integration
 

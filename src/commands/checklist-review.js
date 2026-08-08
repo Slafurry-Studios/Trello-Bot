@@ -1,7 +1,7 @@
 import "dotenv/config";
 import axios from "axios";
-import { getCard } from "./trello.js";
-import { getReviewMessage } from "./gemini.js";
+import { getCard } from "../lib/trello.js";
+import { getReviewMessage } from "../lib/gemini-review.js";
 
 const {
   DISCORD_WEBHOOK_URL,
@@ -15,7 +15,7 @@ async function main() {
   const cardId = process.argv[2];
 
   if (!cardId) {
-    console.error("Usage: node checklist-review.js <cardId>");
+    console.error("Usage: node src/commands/checklist-review.js <cardId>");
     process.exit(1);
   }
 
