@@ -20,7 +20,7 @@ jobs:
         run: npm install
 
       - name: Cek checklist & kirim notifikasi kalau siap review
-        run: node checklist-review.js "${{ github.event.client_payload.cardId }}"
+        run: node src/commands/checklist-review.js "${{ github.event.client_payload.cardId }}"
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}

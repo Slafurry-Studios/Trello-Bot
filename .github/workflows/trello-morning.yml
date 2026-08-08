@@ -22,7 +22,7 @@ jobs:
         run: npm install
 
       - name: Kirim laporan Trello ke Discord
-        run: node index.js --now
+        run: node src/commands/index.js --now
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
