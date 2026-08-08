@@ -1,0 +1,44 @@
+name: Chat Message
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Pesan mentah yang akan diproses oleh Gemini dan dikirim ke Discord'
+        required: true
+      lang:
+        description: 'Bahasa pesan (id/en)'
+        required: false
+        default: id
+  repository_dispatch:
+    types: [chat-message]
+
+jobs:
+  send-chat:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Send processed chat message
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            MESSAGE="${{ github.event.client_payload.message }}"
+            LANG="${{ github.event.client_payload.lang }}"
+          else
+            MESSAGE="${{ github.event.inputs.message }}"
+            LANG="${{ github.event.inputs.lang }}"
+          fi
+          export REMINDER_LANG="${LANG:-id}"
+          node src/commands/chat-message.js "$MESSAGE"
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
