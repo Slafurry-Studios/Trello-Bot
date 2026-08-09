@@ -10,6 +10,7 @@
   "dependencies": {
     "node-cron": "^3.0.3",
     "axios": "^1.7.2",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "uuid": "^11.1.1"
   }
 }
