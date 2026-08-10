@@ -56,11 +56,35 @@ async function getLists({ apiKey, token, boardId }) {
  * - inProgress: tanggal mulai (start) udah lewat, tapi belum deadline hari ini/overdue
  *   (jadi ini kartu yang emang "lagi dikerjain" berdasarkan jadwal, deadline-nya masih di masa depan)
  */
-function categorizeCards(cards) {
+function getTimezoneDateParts(date, timezone) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date).reduce((acc, part) => {
+    if (part.type !== "literal") acc[part.type] = Number(part.value);
+    return acc;
+  }, {});
+
+  return parts;
+}
+
+function getLocalMidnightTimestamp(date, timezone) {
+  const parts = getTimezoneDateParts(date, timezone);
+  return Date.UTC(parts.year, parts.month - 1, parts.day);
+}
+
+function categorizeCards(cards, timezone = "Asia/Jakarta") {
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfToday = new Date(startOfToday);
-  endOfToday.setDate(endOfToday.getDate() + 1);
+  const startOfToday = getLocalMidnightTimestamp(now, timezone);
+  const endOfToday = startOfToday + 24 * 60 * 60 * 1000;
 
   const dueToday = [];
   const overdue = [];
@@ -73,11 +97,12 @@ function categorizeCards(cards) {
     const startDate = card.start ? new Date(card.start) : null;
 
     if (dueDate) {
-      if (dueDate < startOfToday) {
+      const dueDay = getLocalMidnightTimestamp(dueDate, timezone);
+      if (dueDay < startOfToday) {
         overdue.push(card);
         continue;
       }
-      if (dueDate >= startOfToday && dueDate < endOfToday) {
+      if (dueDay < endOfToday) {
         dueToday.push(card);
         continue;
       }

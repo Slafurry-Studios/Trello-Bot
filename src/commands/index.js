@@ -30,10 +30,10 @@ async function buildMorningEmbed() {
   ]);
 
   const listNameById = Object.fromEntries(lists.map((l) => [l.id, l.name]));
-  const { dueToday, overdue, inProgress } = categorizeCards(cards);
+  const timezone = CRON_TIMEZONE || "Asia/Jakarta";
+  const { dueToday, overdue, inProgress } = categorizeCards(cards, timezone);
 
   const fields = [];
-  const timezone = CRON_TIMEZONE || "Asia/Jakarta";
 
   if (overdue.length > 0) {
     fields.push({
@@ -56,11 +56,17 @@ async function buildMorningEmbed() {
     });
   }
 
+  console.log(
+    `Trello morning report: board=${TRELLO_BOARD_ID} list=${TRELLO_LIST_ID || "all"} ` +
+      `timezone=${timezone} overdue=${overdue.length} dueToday=${dueToday.length} inProgress=${inProgress.length}`
+  );
+
   // Kirim angka aktual ke Gemini biar tone-nya otomatis berubah (galak kalau ada overdue)
   const greeting = await getMorningGreeting({
     apiKey: GEMINI_API_KEY,
     dueTodayCount: dueToday.length,
     overdueCount: overdue.length,
+    inProgressCount: inProgress.length,
     lang: REMINDER_LANG || "id",
   });
 
