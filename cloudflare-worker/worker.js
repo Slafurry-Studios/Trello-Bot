@@ -35,7 +35,7 @@ export default {
     }
 
     const action = body?.action;
-    const targetListName = env.TARGET_LIST_NAME || "In Review";
+    const targetListName = env.TARGET_LIST_NAME || "👀 In Review / Testing";
 
     // Cuma peduli sama event "kartu dipindah ke list lain"
     const isCardMove = action?.type === "updateCard" && action?.data?.listAfter;
