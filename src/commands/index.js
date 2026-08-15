@@ -16,12 +16,12 @@ const {
   CRON_TIMEZONE,
 } = process.env;
 
-async function buildMorningEmbed() {
+async function buildMorningEmbed({ boardId, listId, persona, lang } = {}) {
   const trelloParams = {
     apiKey: TRELLO_API_KEY,
     token: TRELLO_TOKEN,
-    boardId: TRELLO_BOARD_ID,
-    listId: TRELLO_LIST_ID || undefined,
+    boardId: boardId || TRELLO_BOARD_ID,
+    listId: listId || TRELLO_LIST_ID || undefined,
   };
 
   const [cards, lists] = await Promise.all([
@@ -67,7 +67,8 @@ async function buildMorningEmbed() {
     dueTodayCount: dueToday.length,
     overdueCount: overdue.length,
     inProgressCount: inProgress.length,
-    lang: REMINDER_LANG || "id",
+    lang: lang || REMINDER_LANG || "id",
+    persona,
   });
 
   const baseDescription =
@@ -83,12 +84,61 @@ async function buildMorningEmbed() {
 }
 
 async function sendMorningReport() {
-  try {
-    const embed = await buildMorningEmbed();
-    await axios.post(DISCORD_WEBHOOK_URL, { embeds: [embed] });
-    console.log("Laporan pagi terkirim:", new Date().toISOString());
-  } catch (err) {
-    console.error("Gagal kirim laporan pagi:", err.response?.data || err.message);
+  // Coba baca BOARD_TARGETS untuk mengirim laporan ke beberapa board/target
+  let boardTargets = null;
+  if (process.env.BOARD_TARGETS) {
+    try {
+      boardTargets = JSON.parse(process.env.BOARD_TARGETS);
+    } catch (e) {
+      console.error("Invalid BOARD_TARGETS JSON:", e.message);
+      boardTargets = null;
+    }
+  }
+
+  if (boardTargets && Object.keys(boardTargets).length > 0) {
+    // Kalau TARGET_BOARD_ID diisi (biasanya dari input manual "Run workflow"),
+    // cuma proses board itu aja — biar testing 1 divisi nggak nge-spam divisi lain.
+    const targetBoardId = process.env.TARGET_BOARD_ID?.trim();
+    const entries = targetBoardId
+      ? Object.entries(boardTargets).filter(([boardId]) => boardId === targetBoardId)
+      : Object.entries(boardTargets);
+
+    if (targetBoardId && entries.length === 0) {
+      console.error(
+        `TARGET_BOARD_ID="${targetBoardId}" tidak ditemukan di BOARD_TARGETS. Tidak ada yang dikirim.`
+      );
+      return;
+    }
+
+    for (const [boardId, target] of entries) {
+      try {
+        const embed = await buildMorningEmbed({
+          boardId,
+          listId: target.listId,
+          persona: target.persona,
+          lang: target.lang,
+        });
+        const url = target.url || DISCORD_WEBHOOK_URL;
+        if (!url) {
+          console.warn(`Tidak ada webhook target untuk board ${boardId}; dilewatkan.`);
+          continue;
+        }
+
+        await axios.post(url, { embeds: [embed] });
+        console.log(`Laporan pagi untuk board ${boardId} terkirim ke ${url}`);
+      } catch (err) {
+        console.error(`Gagal kirim laporan pagi untuk board ${boardId}:`, err.response?.data || err.message);
+      }
+    }
+  } else {
+    // Fallback: perilaku lama (single webhook + single board dari env)
+    try {
+      const embed = await buildMorningEmbed();
+      await axios.post(DISCORD_WEBHOOK_URL, { embeds: [embed] });
+      console.log("Laporan pagi terkirim:", new Date().toISOString());
+    } catch (err) {
+      console.error("Gagal kirim laporan pagi:", err.response?.data || err.message);
+    }
   }
 }
 

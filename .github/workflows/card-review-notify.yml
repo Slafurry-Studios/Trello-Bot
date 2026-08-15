@@ -3,6 +3,12 @@ name: Trello Card Review Notify
 on:
   repository_dispatch:
     types: [trello-card-review]
+  workflow_dispatch:
+    inputs:
+      card_id:
+        description: "ID kartu Trello buat testing manual (1 kartu aja, bukan bulk)"
+        required: true
+        type: string
 
 jobs:
   notify:
@@ -20,10 +26,17 @@ jobs:
         run: npm install
 
       - name: Cek checklist & kirim notifikasi kalau siap review
-        run: node src/commands/checklist-review.js "${{ github.event.client_payload.cardId }}"
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            CARD_ID="${{ github.event.client_payload.cardId }}"
+          else
+            CARD_ID="${{ github.event.inputs.card_id }}"
+          fi
+          node src/commands/checklist-review.js "$CARD_ID"
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
           TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           REMINDER_LANG: ${{ secrets.REMINDER_LANG }}
+          BOARD_TARGETS: ${{ secrets.BOARD_TARGETS }}

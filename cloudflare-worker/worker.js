@@ -1,79 +1,159 @@
 /**
- * Cloudflare Worker — penerima webhook Trello.
+ * Cloudflare Worker — penerima webhook Trello dengan dukungan multi-target per board.
  *
- * Trello butuh URL publik buat ngirim event pas ada perubahan di board.
- * Worker ini yang jadi alamat itu. Tugasnya:
- * 1. Jawab "OK" ke request HEAD (Trello ngecek URL ini hidup pas registrasi webhook).
- * 2. Terima POST event dari Trello, filter: cuma proses kalau kartu dipindah ke list
- *    target (default "In Review").
- * 3. Kalau cocok, trigger GitHub Actions lewat repository_dispatch API, kirim ID
- *    kartunya. GitHub Actions yang nanti ngecek checklist & kirim ke Discord.
+ * Perubahan utama:
+ * - Bisa mengonfigurasi BOARD_TARGETS (JSON) supaya setiap board bisa memiliki target
+ *   berbeda (mis. webhook eksternal atau GitHub repository_dispatch).
+ * - Kalau BOARD_TARGETS tidak diset, tetap fallback ke perilaku lama (TARGET_LIST_NAME
+ *   + GITHUB_* env) untuk kompatibilitas.
  *
- * Env vars yang perlu di-set di Cloudflare (Settings -> Variables and Secrets):
- * - GITHUB_TOKEN     : Personal Access Token dengan scope "repo" (buat trigger dispatch)
- * - GITHUB_OWNER     : username/organisasi GitHub, misal "Slafurry-Studios"
- * - GITHUB_REPO      : nama repo, misal "Trello-Bot"
- * - TARGET_LIST_NAME : nama list Trello yang jadi trigger, default "In Review"
+ * Contoh BOARD_TARGETS (string JSON di environment):
+ * {
+ *   "<boardIdA>": { "type": "github" },
+ *   "<boardIdB>": { "type": "webhook", "url": "https://example.com/your-hook" }
+ * }
+ *
+ * Untuk "github" worker akan menggunakan env GITHUB_OWNER, GITHUB_REPO dan GITHUB_TOKEN
+ * (sama seperti sebelumnya). Untuk "webhook" worker akan melakukan POST ke url yang
+ * diset dengan payload sederhana { event_type, boardId, cardId, action }.
  */
 
 export default {
   async fetch(request, env) {
-    // Trello ngirim HEAD request pas kamu daftarin webhook, buat mastiin URL-nya hidup.
-    if (request.method === "HEAD") {
-      return new Response(null, { status: 200 });
-    }
-
-    if (request.method !== "POST") {
-      return new Response("Method not allowed", { status: 405 });
-    }
+    if (request.method === "HEAD") return new Response(null, { status: 200 });
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
     let body;
     try {
       body = await request.json();
-    } catch {
+    } catch (e) {
       return new Response("Invalid JSON", { status: 400 });
     }
 
     const action = body?.action;
-    const targetListName = env.TARGET_LIST_NAME || "👀 In Review / Testing";
+    if (!action) return new Response("No action in payload", { status: 400 });
 
-    // Cuma peduli sama event "kartu dipindah ke list lain"
-    const isCardMove = action?.type === "updateCard" && action?.data?.listAfter;
-    const movedToTarget =
-      isCardMove &&
-      action.data.listAfter.name?.toLowerCase() === targetListName.toLowerCase();
+    // Ambil board id dari payload kalau ada
+    const boardId = action?.data?.board?.id || action?.data?.board?.idBoard || action?.data?.card?.idBoard;
+    const cardId = action?.data?.card?.id;
 
-    if (!movedToTarget) {
-      // Bukan event yang relevan, jawab OK aja biar Trello nggak retry terus
-      return new Response("Ignored (not a move to target list)", { status: 200 });
+    // Parse BOARD_TARGETS jika ada
+    let boardTargets = null;
+    if (env.BOARD_TARGETS) {
+      try {
+        boardTargets = JSON.parse(env.BOARD_TARGETS);
+      } catch (e) {
+        console.error("Invalid BOARD_TARGETS JSON:", e.message);
+        // jangan gagal total: biarkan boardTargets null supaya fallback ke perilaku lama
+        boardTargets = null;
+      }
     }
 
-    const cardId = action.data.card.id;
+    // Kalau event bukan updateCard->listAfter, abaikan (agar Trello nggak retry terus)
+    const isCardMove = action?.type === "updateCard" && action?.data?.listAfter;
+    if (!isCardMove) return new Response("Ignored (not an updateCard/listAfter)", { status: 200 });
 
-    // Trigger GitHub Actions lewat repository_dispatch
-    const ghResponse = await fetch(
-      `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/dispatches`,
-      {
+    // Jika ada mapping khusus untuk board ini, gunakan
+    if (boardId && boardTargets && boardTargets[boardId]) {
+      const target = boardTargets[boardId];
+
+      if (target.type === "webhook" && target.url) {
+        try {
+          const resp = await fetch(target.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "User-Agent": "trello-review-webhook" },
+            body: JSON.stringify({ event_type: "trello-card-move", boardId, cardId, action }),
+          });
+
+          if (!resp.ok) {
+            const text = await resp.text();
+            console.error("Forward to webhook failed:", resp.status, text);
+            return new Response("Failed to forward to webhook", { status: 502 });
+          }
+
+          return new Response("Forwarded", { status: 200 });
+        } catch (e) {
+          console.error("Error forwarding to webhook:", e.message);
+          return new Response("Failed to forward to webhook", { status: 502 });
+        }
+      }
+
+      if (target.type === "github") {
+        // gunakan env GITHUB_* (fallback) atau override dari target
+        const owner = target.owner || env.GITHUB_OWNER;
+        const repo = target.repo || env.GITHUB_REPO;
+        const token = target.token || env.GITHUB_TOKEN;
+
+        if (!owner || !repo || !token) {
+          console.error("Missing GitHub config for github dispatch target", { owner, repo });
+          return new Response("Missing GitHub configuration", { status: 500 });
+        }
+
+        try {
+          const ghResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/dispatches`, {
+            method: "POST",
+            headers: {
+              Authorization: `token ${token}`,
+              Accept: "application/vnd.github+json",
+              "Content-Type": "application/json",
+              "User-Agent": "trello-review-webhook",
+            },
+            body: JSON.stringify({ event_type: "trello-card-review", client_payload: { cardId, boardId } }),
+          });
+
+          if (!ghResp.ok) {
+            const text = await ghResp.text();
+            console.error("GitHub dispatch failed:", ghResp.status, text);
+            return new Response("Failed to trigger GitHub Actions", { status: 502 });
+          }
+
+          return new Response("Triggered", { status: 200 });
+        } catch (e) {
+          console.error("Error triggering GitHub dispatch:", e.message);
+          return new Response("Failed to trigger GitHub Actions", { status: 502 });
+        }
+      }
+
+      // tipe target tidak dikenali
+      console.error("Unknown target type for board", boardId, target);
+      return new Response("Unknown target type", { status: 500 });
+    }
+
+    // Fallback ke perilaku lama: pakai TARGET_LIST_NAME + GITHUB_* env
+    const targetListName = env.TARGET_LIST_NAME || "👀 In Review / Testing";
+    const movedToTarget = action.data.listAfter.name?.toLowerCase() === targetListName.toLowerCase();
+    if (!movedToTarget) return new Response("Ignored (not a move to target list)", { status: 200 });
+
+    const owner = env.GITHUB_OWNER;
+    const repo = env.GITHUB_REPO;
+    const token = env.GITHUB_TOKEN;
+    if (!owner || !repo || !token) {
+      console.error("Missing GITHUB_OWNER/GITHUB_REPO/GITHUB_TOKEN for fallback dispatch");
+      return new Response("Missing GitHub configuration", { status: 500 });
+    }
+
+    try {
+      const ghResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/dispatches`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+          Authorization: `token ${token}`,
           Accept: "application/vnd.github+json",
           "Content-Type": "application/json",
           "User-Agent": "trello-review-webhook",
         },
-        body: JSON.stringify({
-          event_type: "trello-card-review",
-          client_payload: { cardId },
-        }),
-      }
-    );
+        body: JSON.stringify({ event_type: "trello-card-review", client_payload: { cardId, boardId } }),
+      });
 
-    if (!ghResponse.ok) {
-      const errText = await ghResponse.text();
-      console.error("Gagal trigger GitHub Actions:", ghResponse.status, errText);
+      if (!ghResp.ok) {
+        const text = await ghResp.text();
+        console.error("GitHub dispatch failed:", ghResp.status, text);
+        return new Response("Failed to trigger GitHub Actions", { status: 502 });
+      }
+
+      return new Response("Triggered", { status: 200 });
+    } catch (e) {
+      console.error("Error triggering GitHub dispatch:", e.message);
       return new Response("Failed to trigger GitHub Actions", { status: 502 });
     }
-
-    return new Response("Triggered", { status: 200 });
   },
 };

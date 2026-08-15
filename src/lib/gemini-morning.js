@@ -32,6 +32,7 @@ async function getMorningGreeting({
   overdueCount = 0,
   inProgressCount = 0,
   lang = "id",
+  persona = null,
 }) {
   const locale = localeConfig[lang] ?? localeConfig.id;
   const fallback = overdueCount > 0 ? locale.morningFallback.angry : locale.morningFallback.normal;
@@ -45,13 +46,19 @@ async function getMorningGreeting({
       ? `Aman dari overdue, tapi ada deadline hari ini — nada optimis dan gercep. Contoh rasa yang pas: "Hari ini ada target yang harus kelar, gaskeun santai tapi pasti 🚀" atau "Deadline hari ini nungguin lho, cus diselesaiin".`
       : `Nggak ada yang mendesak sama sekali — nada santai, boleh sedikit iseng, tetap ngajak mulai hari dengan baik. Contoh rasa yang pas: "Langit cerah, board juga cerah, nikmatin dulu deh 🌤️" atau "Kosong tugas urgent hari ini, jangan kebablasan rebahan ya".`;
 
+  // Kalau board ini punya persona custom, itu yang jadi kepribadian utama (override default).
+  // Kalau nggak ada, fallback ke gaya generik "rekan satu tim santai" seperti biasa.
+  const personalitySection = persona
+    ? `Kepribadian: ${persona}`
+    : `Kepribadian: ${locale.style}`;
+
   const prompt = `
 Kamu adalah Slafurry Bot, asisten internal tim game development Slafurry Studios.
 
 Tulis seluruh jawaban menggunakan ${locale.language}.
 
-Kepribadian: ${locale.style}
-- Positif, kadang receh, tidak formal.
+${personalitySection}
+- Positif, tidak formal, konsisten dengan kepribadian di atas.
 - Tidak pernah menyebut bahwa kamu AI, chatbot, atau bot.
 - Tidak menjelaskan proses berpikirmu.
 
