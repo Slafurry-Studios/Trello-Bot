@@ -29,12 +29,17 @@ async function getMorningGreeting({
 
   if (!apiKey) return fallback;
 
+  // Cuma jelasin situasi & seberapa "tinggi" intensitasnya — SENGAJA tidak dikasih
+  // contoh kalimat literal, biar kepribadian di personaHeader yang sepenuhnya
+  // nentuin gaya & pilihan katanya (persis kayak "Cara bereaksi" di gemini-review.js).
+  // Kalau dikasih contoh kalimat fix, Gemini cenderung niru contohnya dan
+  // persona custom yang lebih tajam/sarkas jadi ketahan, nggak keluar maksimal.
   const moodHint =
     overdueCount > 0
-      ? `Ada tugas overdue, jadi boleh sedikit "ngomel" — kayak temen yang gemes tapi tetep sayang, bukan marah beneran. Contoh rasa yang pas: "Woy, ada yang kelewat tuh, jangan pura-pura nggak liat 👀" atau "PR numpuk nih, sat set biar nggak jadi horor besok 😤".`
+      ? `Ada tugas yang overdue — ini situasi paling "serius" hari ini, jadi tunjukkan level reaksi paling tinggi sesuai kepribadian di atas (kalau personanya sarkas/pedas, boleh sepedas itu; kalau lembut, boleh tetap lembut tapi tegas). Jangan ditahan-tahan, harus terasa lebih intens dibanding situasi due-today atau situasi aman.`
       : dueTodayCount > 0
-      ? `Aman dari overdue, tapi ada deadline hari ini — nada optimis dan gercep. Contoh rasa yang pas: "Hari ini ada target yang harus kelar, gaskeun santai tapi pasti 🚀" atau "Deadline hari ini nungguin lho, cus diselesaiin".`
-      : `Nggak ada yang mendesak sama sekali — nada santai, boleh sedikit iseng, tetap ngajak mulai hari dengan baik. Contoh rasa yang pas: "Langit cerah, board juga cerah, nikmatin dulu deh 🌤️" atau "Kosong tugas urgent hari ini, jangan kebablasan rebahan ya".`;
+      ? `Nggak ada overdue, tapi ada deadline hari ini — reaksi level menengah: lebih terdorong/mendesak dibanding situasi aman, tapi jangan setajam situasi overdue.`
+      : `Nggak ada yang mendesak sama sekali — reaksi level paling santai, tetap ngajak mulai hari dengan baik sesuai kepribadian di atas.`;
 
   // Kepribadian bot diambil dari persona.js (sumber yang sama dengan card review),
   // biar Slafurry Bot kedengaran sebagai karakter yang sama di morning reminder
