@@ -1,23 +1,12 @@
 import axios from "axios";
+import { getLocale, buildPersonaHeader } from "./persona.js";
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
 
-const localeConfig = {
-  id: {
-    language: "Bahasa Indonesia",
-    style: "Santai, akrab, dan seperti rekan satu tim yang lagi nongkrong di Discord.",
-    avoid:
-      'Hindari kalimat klise yang sering keluar dari AI, misal "Semangat pagi tim!", "Yuk kita mulai hari dengan penuh semangat!", "Mari kita produktif hari ini!". Cari sudut pandang atau kata yang lebih segar tiap kali.',
-    reviewFallback: (cardName) => `${cardName} udah siap direview nih! 👀`,
-  },
-  en: {
-    language: "English",
-    style: "Casual and friendly, like a teammate chatting on Discord.",
-    avoid:
-      'Avoid AI-sounding cliches like "Good morning team!", "Let\'s make today productive!", "Rise and grind!". Find a fresher angle each time.',
-    reviewFallback: (cardName) => `${cardName} is ready for review! 👀`,
-  },
+const reviewFallback = {
+  id: (cardName) => `${cardName} udah siap direview nih! 👀`,
+  en: (cardName) => `${cardName} is ready for review! 👀`,
 };
 
 async function getReviewMessage({
@@ -29,25 +18,16 @@ async function getReviewMessage({
   lang = "id",
   persona = null,
 }) {
-  const locale = localeConfig[lang] ?? localeConfig.id;
-  const fallback = locale.reviewFallback(cardName);
+  const locale = getLocale(lang);
+  const fallback = (reviewFallback[lang] ?? reviewFallback.id)(cardName);
 
   if (!apiKey) return fallback;
 
   const labelText = labels.length > 0 ? labels.join(", ") : "Tidak ada";
-  const personalitySection = persona
-    ? `Kepribadian: ${persona}`
-    : `Kepribadian: ${locale.style}`;
+  const personaHeader = buildPersonaHeader({ persona, locale });
 
   const prompt = `
-Kamu adalah Slafurry Bot, bot Discord internal untuk tim game development Slafurry Studios.
-
-Tulis seluruh jawaban menggunakan ${locale.language}.
-
-${personalitySection}
-- Positif, tidak formal, konsisten dengan kepribadian di atas.
-- Tidak pernah menyebut bahwa kamu AI, chatbot, atau bot.
-- Jangan menjelaskan proses berpikirmu.
+${personaHeader}
 
 Informasi kartu:
 - Nama: ${cardName}
