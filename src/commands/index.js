@@ -16,12 +16,12 @@ const {
   CRON_TIMEZONE,
 } = process.env;
 
-async function buildMorningEmbed() {
+async function buildMorningEmbed({ boardId, listId } = {}) {
   const trelloParams = {
     apiKey: TRELLO_API_KEY,
     token: TRELLO_TOKEN,
-    boardId: TRELLO_BOARD_ID,
-    listId: TRELLO_LIST_ID || undefined,
+    boardId: boardId || TRELLO_BOARD_ID,
+    listId: listId || TRELLO_LIST_ID || undefined,
   };
 
   const [cards, lists] = await Promise.all([
@@ -83,12 +83,42 @@ async function buildMorningEmbed() {
 }
 
 async function sendMorningReport() {
-  try {
-    const embed = await buildMorningEmbed();
-    await axios.post(DISCORD_WEBHOOK_URL, { embeds: [embed] });
-    console.log("Laporan pagi terkirim:", new Date().toISOString());
-  } catch (err) {
-    console.error("Gagal kirim laporan pagi:", err.response?.data || err.message);
+  // Coba baca BOARD_TARGETS untuk mengirim laporan ke beberapa board/target
+  let boardTargets = null;
+  if (process.env.BOARD_TARGETS) {
+    try {
+      boardTargets = JSON.parse(process.env.BOARD_TARGETS);
+    } catch (e) {
+      console.error("Invalid BOARD_TARGETS JSON:", e.message);
+      boardTargets = null;
+    }
+  }
+
+  if (boardTargets && Object.keys(boardTargets).length > 0) {
+    for (const [boardId, target] of Object.entries(boardTargets)) {
+      try {
+        const embed = await buildMorningEmbed({ boardId, listId: target.listId });
+        const url = target.url || DISCORD_WEBHOOK_URL;
+        if (!url) {
+          console.warn(`Tidak ada webhook target untuk board ${boardId}; dilewatkan.`);
+          continue;
+        }
+
+        await axios.post(url, { embeds: [embed] });
+        console.log(`Laporan pagi untuk board ${boardId} terkirim ke ${url}`);
+      } catch (err) {
+        console.error(`Gagal kirim laporan pagi untuk board ${boardId}:`, err.response?.data || err.message);
+      }
+    }
+  } else {
+    // Fallback: perilaku lama (single webhook + single board dari env)
+    try {
+      const embed = await buildMorningEmbed();
+      await axios.post(DISCORD_WEBHOOK_URL, { embeds: [embed] });
+      console.log("Laporan pagi terkirim:", new Date().toISOString());
+    } catch (err) {
+      console.error("Gagal kirim laporan pagi:", err.response?.data || err.message);
+    }
   }
 }
 
