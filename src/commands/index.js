@@ -16,7 +16,7 @@ const {
   CRON_TIMEZONE,
 } = process.env;
 
-async function buildMorningEmbed({ boardId, listId, persona } = {}) {
+async function buildMorningEmbed({ boardId, listId, persona, lang } = {}) {
   const trelloParams = {
     apiKey: TRELLO_API_KEY,
     token: TRELLO_TOKEN,
@@ -67,7 +67,7 @@ async function buildMorningEmbed({ boardId, listId, persona } = {}) {
     dueTodayCount: dueToday.length,
     overdueCount: overdue.length,
     inProgressCount: inProgress.length,
-    lang: REMINDER_LANG || "id",
+    lang: lang || REMINDER_LANG || "id",
     persona,
   });
 
@@ -116,6 +116,7 @@ async function sendMorningReport() {
           boardId,
           listId: target.listId,
           persona: target.persona,
+          lang: target.lang,
         });
         const url = target.url || DISCORD_WEBHOOK_URL;
         if (!url) {

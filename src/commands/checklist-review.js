@@ -45,6 +45,7 @@ async function main() {
   const target = boardTargets?.[card.idBoard];
   const webhookUrl = target?.url || DISCORD_WEBHOOK_URL;
   const persona = target?.persona || null;
+  const lang = target?.lang || REMINDER_LANG || "id";
 
   if (!webhookUrl) {
     console.error(`Tidak ada webhook untuk board ${card.idBoard} dan DISCORD_WEBHOOK_URL kosong.`);
@@ -61,7 +62,7 @@ async function main() {
     cardDescription: card.desc || "",
     listName: "In Review",
     labels: labelNames,
-    lang: REMINDER_LANG || "id",
+    lang: lang,
     persona,
   });
 

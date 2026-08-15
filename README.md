@@ -87,12 +87,14 @@ Isi `BOARD_TARGETS` (di `.env` lokal, atau di GitHub Secrets buat production) de
   "ndAFQbvM": {
     "type": "github",
     "url": "https://discord.com/api/webhooks/xxx-programming",
-    "persona": "Nerd yang gemar bercanda pakai istilah programming (bug, commit, deploy), to the point, sedikit sarkas tapi tetap suportif."
+    "persona": "Nerd yang gemar bercanda pakai istilah programming (bug, commit, deploy), to the point, sedikit sarkas tapi tetap suportif.",
+    "lang": "id"
   },
   "abCdEfGh": {
     "type": "github",
     "url": "https://discord.com/api/webhooks/xxx-art",
-    "persona": "Ekspresif dan artistik, suka pakai analogi warna/visual, hangat, banyak emoji seni."
+    "persona": "Expressive and artistic, loves color/visual analogies, warm, uses a lot of creative emoji.",
+    "lang": "en"
   }
 }
 ```
@@ -101,6 +103,7 @@ Isi `BOARD_TARGETS` (di `.env` lokal, atau di GitHub Secrets buat production) de
 - **Key** (`"ndAFQbvM"`) = Board ID Trello divisi tersebut.
 - **`url`** = webhook Discord tujuan buat divisi ini (dipakai laporan pagi & notifikasi review).
 - **`persona`** = deskripsi bebas soal gimana Gemini harus "berkepribadian" buat divisi ini. Makin spesifik makin bagus hasilnya (contoh di atas cukup representatif).
+- **`lang`** (opsional) = bahasa pesan Gemini buat divisi ini, `"id"` atau `"en"`. Tiap divisi bisa beda-beda — misal divisi lokal pakai Indonesia, divisi yang ada anggota asing pakai English. Kalau kosong, fallback ke `REMINDER_LANG` global.
 - **`type`** = **khusus dipakai Cloudflare Worker**, buat nentuin gimana Worker neruskan event kartu. **Selalu pakai `"github"`** kecuali kamu punya kebutuhan advanced di luar sistem ini (lihat catatan di `env.example`).
 - **`listId`** (opsional) = kalau laporan pagi divisi ini mau fokus ke 1 list Trello aja, bukan seluruh board.
 
