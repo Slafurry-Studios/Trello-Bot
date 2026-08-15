@@ -61,12 +61,21 @@ async function buildMorningEmbed({ boardId, listId, persona, lang } = {}) {
       `timezone=${timezone} overdue=${overdue.length} dueToday=${dueToday.length} inProgress=${inProgress.length}`
   );
 
-  // Kirim angka aktual ke Gemini biar tone-nya otomatis berubah (galak kalau ada overdue)
+  // Kirim angka aktual + nama-nama kartu ke Gemini, biar tone-nya otomatis berubah
+  // (galak kalau ada overdue) DAN dia punya bahan buat nyeleneh/plesetin nama kartu
+  // spesifik — sama kayak yang dilakuin di notifikasi review, bukan cuma modal angka.
+  // Dibatasi biar prompt nggak kepanjangan kalau kartunya banyak banget.
+  const MAX_CARD_NAMES = 8;
+  const toCardNames = (list) => list.slice(0, MAX_CARD_NAMES).map((c) => c.name);
+
   const greeting = await getMorningGreeting({
     apiKey: GEMINI_API_KEY,
     dueTodayCount: dueToday.length,
     overdueCount: overdue.length,
     inProgressCount: inProgress.length,
+    overdueCardNames: toCardNames(overdue),
+    dueTodayCardNames: toCardNames(dueToday),
+    inProgressCardNames: toCardNames(inProgress),
     lang: lang || REMINDER_LANG || "id",
     persona,
   });

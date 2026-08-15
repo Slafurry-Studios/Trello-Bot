@@ -20,6 +20,9 @@ async function getMorningGreeting({
   dueTodayCount = 0,
   overdueCount = 0,
   inProgressCount = 0,
+  overdueCardNames = [],
+  dueTodayCardNames = [],
+  inProgressCardNames = [],
   lang = "id",
   persona = null,
 }) {
@@ -46,15 +49,23 @@ async function getMorningGreeting({
   // maupun notifikasi review — bukan dua "kepribadian" yang berbeda-beda.
   const personaHeader = buildPersonaHeader({ persona, locale });
 
+  const formatCardNames = (names) => (names.length > 0 ? names.join(", ") : "(tidak ada)");
+
   const prompt = `
 ${personaHeader}
 
 Kondisi board hari ini:
-- Tugas overdue: ${overdueCount}
-- Deadline hari ini: ${dueTodayCount}
-- Sedang dikerjakan: ${inProgressCount}
+- Tugas overdue (${overdueCount}): ${formatCardNames(overdueCardNames)}
+- Deadline hari ini (${dueTodayCount}): ${formatCardNames(dueTodayCardNames)}
+- Sedang dikerjakan (${inProgressCount}): ${formatCardNames(inProgressCardNames)}
 
 Rasa/nada yang diharapkan: ${moodHint}
+
+Cara bereaksi ke nama kartu:
+- Kalau ada nama kartu yang unik, lucu, atau nyeleneh (terutama yang overdue), boleh sindir/plesetin nama itu secara spesifik — jangan cuma bilang "ada tugas overdue" secara generik, tunjukin kamu beneran "baca" nama kartunya.
+- Kalau nama-nama kartunya biasa aja/generik, cukup sebut salah satu secara natural, jangan dipaksa lucu.
+- Kalau kartunya banyak, nggak perlu sebut semua nama — pilih 1-2 yang paling pas buat disindir/disebut, sisanya cukup terwakili lewat angkanya.
+- Jangan mengarang detail atau isi kartu yang nggak ada di sini — cuma modal nama kartu & angkanya.
 
 Aturan:
 - Tulis HANYA SATU kalimat, maksimal 25 kata.
