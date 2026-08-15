@@ -3,8 +3,16 @@ name: Trello Morning Report
 on:
   schedule:
     # Jam 23:00 UTC = 07:00 WITA (WITA = UTC+8, jadi jam WITA dikurangi 8 buat dapet UTC)
+    # Trigger via schedule SELALU kirim ke SEMUA divisi di BOARD_TARGETS sekaligus.
     - cron: "0 23 * * *"
-  workflow_dispatch: {} # biar bisa di-trigger manual dari tab "Actions" di GitHub buat testing
+  workflow_dispatch:
+    inputs:
+      board_id:
+        description: >
+          (Opsional) ID board Trello buat testing 1 divisi aja, misal "ndAFQbvM".
+          Kosongkan buat kirim ke SEMUA divisi sekaligus (behaviour sama kayak jadwal pagi).
+        required: false
+        type: string
 
 jobs:
   send-report:
@@ -31,5 +39,5 @@ jobs:
           TRELLO_LIST_ID: ${{ secrets.TRELLO_LIST_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           REMINDER_LANG: ${{ secrets.REMINDER_LANG }}
-
-          
+          BOARD_TARGETS: ${{ secrets.BOARD_TARGETS }}
+          TARGET_BOARD_ID: ${{ github.event.inputs.board_id }}

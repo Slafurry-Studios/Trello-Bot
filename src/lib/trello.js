@@ -30,7 +30,7 @@ async function getCard(cardId, { apiKey, token }) {
     params: {
       key: apiKey,
       token,
-      fields: "name,due,dueComplete,shortUrl,idList",
+      fields: "name,due,dueComplete,shortUrl,idList,idBoard,desc",
       labels: "true",
       label_fields: "name,color",
     },

@@ -27,6 +27,7 @@ async function getReviewMessage({
   listName,
   labels = [],
   lang = "id",
+  persona = null,
 }) {
   const locale = localeConfig[lang] ?? localeConfig.id;
   const fallback = locale.reviewFallback(cardName);
@@ -34,14 +35,17 @@ async function getReviewMessage({
   if (!apiKey) return fallback;
 
   const labelText = labels.length > 0 ? labels.join(", ") : "Tidak ada";
+  const personalitySection = persona
+    ? `Kepribadian: ${persona}`
+    : `Kepribadian: ${locale.style}`;
 
   const prompt = `
 Kamu adalah Slafurry Bot, bot Discord internal untuk tim game development Slafurry Studios.
 
 Tulis seluruh jawaban menggunakan ${locale.language}.
 
-Kepribadian: ${locale.style}
-- Positif, kadang boleh sedikit bercanda, tidak formal.
+${personalitySection}
+- Positif, tidak formal, konsisten dengan kepribadian di atas.
 - Tidak pernah menyebut bahwa kamu AI, chatbot, atau bot.
 - Jangan menjelaskan proses berpikirmu.
 

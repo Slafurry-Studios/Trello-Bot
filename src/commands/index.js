@@ -16,7 +16,7 @@ const {
   CRON_TIMEZONE,
 } = process.env;
 
-async function buildMorningEmbed({ boardId, listId } = {}) {
+async function buildMorningEmbed({ boardId, listId, persona } = {}) {
   const trelloParams = {
     apiKey: TRELLO_API_KEY,
     token: TRELLO_TOKEN,
@@ -68,6 +68,7 @@ async function buildMorningEmbed({ boardId, listId } = {}) {
     overdueCount: overdue.length,
     inProgressCount: inProgress.length,
     lang: REMINDER_LANG || "id",
+    persona,
   });
 
   const baseDescription =
@@ -95,9 +96,27 @@ async function sendMorningReport() {
   }
 
   if (boardTargets && Object.keys(boardTargets).length > 0) {
-    for (const [boardId, target] of Object.entries(boardTargets)) {
+    // Kalau TARGET_BOARD_ID diisi (biasanya dari input manual "Run workflow"),
+    // cuma proses board itu aja — biar testing 1 divisi nggak nge-spam divisi lain.
+    const targetBoardId = process.env.TARGET_BOARD_ID?.trim();
+    const entries = targetBoardId
+      ? Object.entries(boardTargets).filter(([boardId]) => boardId === targetBoardId)
+      : Object.entries(boardTargets);
+
+    if (targetBoardId && entries.length === 0) {
+      console.error(
+        `TARGET_BOARD_ID="${targetBoardId}" tidak ditemukan di BOARD_TARGETS. Tidak ada yang dikirim.`
+      );
+      return;
+    }
+
+    for (const [boardId, target] of entries) {
       try {
-        const embed = await buildMorningEmbed({ boardId, listId: target.listId });
+        const embed = await buildMorningEmbed({
+          boardId,
+          listId: target.listId,
+          persona: target.persona,
+        });
         const url = target.url || DISCORD_WEBHOOK_URL;
         if (!url) {
           console.warn(`Tidak ada webhook target untuk board ${boardId}; dilewatkan.`);
