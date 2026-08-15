@@ -17,6 +17,17 @@ Create a `.env` file (you can copy from `env.example`) and set the following val
 - `TRELLO_TOKEN` — Trello token
 - `TRELLO_BOARD_ID` — Trello board ID
 - `TRELLO_LIST_ID` — (optional) List ID to limit cards to a specific list
+- `BOARD_TARGETS` — (optional) JSON string that maps Trello board IDs to targets (see `env.example`).
+  Example value:
+  ```json
+  {
+    "<boardIdA>": { "type": "github" },
+    "<boardIdB>": { "type": "webhook", "url": "https://example.com/your-hook" }
+  }
+  ```
+  Supported target types:
+  - `github`: trigger a repository_dispatch on the configured `GITHUB_OWNER`/`GITHUB_REPO` (or override per-target with `owner`, `repo`, `token`).
+  - `webhook`: forward the Trello event to the configured `url` as a POST with JSON payload.
 - `GEMINI_API_KEY` — (optional) Google Gemini API key for generated greetings
 - `REMINDER_LANG` — (optional) `en` or `id` (default: `id`)
 - `CRON_SCHEDULE` — cron expression for schedule (default: `0 7 * * *`)
