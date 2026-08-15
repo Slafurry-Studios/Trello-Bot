@@ -1,28 +1,17 @@
 import axios from "axios";
+import { getLocale, buildPersonaHeader } from "./persona.js";
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
 
-const localeConfig = {
+const morningFallback = {
   id: {
-    language: "Bahasa Indonesia",
-    style: "Santai, akrab, dan seperti rekan satu tim yang lagi nongkrong di Discord.",
-    avoid:
-      'Hindari kalimat klise yang sering keluar dari AI, misal "Semangat pagi tim!", "Yuk kita mulai hari dengan penuh semangat!", "Mari kita produktif hari ini!". Cari sudut pandang atau kata yang lebih segar tiap kali.',
-    morningFallback: {
-      normal: "Semangat pagi! Yuk selesaikan tugas hari ini satu-satu. 💪",
-      angry: "WOI ada tugas yang overdue tuh, jangan cuma diliatin doang! 😤",
-    },
+    normal: "Semangat pagi! Yuk selesaikan tugas hari ini satu-satu. 💪",
+    angry: "WOI ada tugas yang overdue tuh, jangan cuma diliatin doang! 😤",
   },
   en: {
-    language: "English",
-    style: "Casual and friendly, like a teammate chatting on Discord.",
-    avoid:
-      'Avoid AI-sounding cliches like "Good morning team!", "Let\'s make today productive!", "Rise and grind!". Find a fresher angle each time.',
-    morningFallback: {
-      normal: "Good morning! Let's knock out today's tasks one by one. 💪",
-      angry: "Hey, you've got overdue tasks waiting — let's get them sorted! 😤",
-    },
+    normal: "Good morning! Let's knock out today's tasks one by one. 💪",
+    angry: "Hey, you've got overdue tasks waiting — let's get them sorted! 😤",
   },
 };
 
@@ -31,43 +20,52 @@ async function getMorningGreeting({
   dueTodayCount = 0,
   overdueCount = 0,
   inProgressCount = 0,
+  overdueCardNames = [],
+  dueTodayCardNames = [],
+  inProgressCardNames = [],
   lang = "id",
   persona = null,
 }) {
-  const locale = localeConfig[lang] ?? localeConfig.id;
-  const fallback = overdueCount > 0 ? locale.morningFallback.angry : locale.morningFallback.normal;
+  const locale = getLocale(lang);
+  const fallbackSet = morningFallback[lang] ?? morningFallback.id;
+  const fallback = overdueCount > 0 ? fallbackSet.angry : fallbackSet.normal;
 
   if (!apiKey) return fallback;
 
+  // Cuma jelasin situasi & seberapa "tinggi" intensitasnya — SENGAJA tidak dikasih
+  // contoh kalimat literal, biar kepribadian di personaHeader yang sepenuhnya
+  // nentuin gaya & pilihan katanya (persis kayak "Cara bereaksi" di gemini-review.js).
+  // Kalau dikasih contoh kalimat fix, Gemini cenderung niru contohnya dan
+  // persona custom yang lebih tajam/sarkas jadi ketahan, nggak keluar maksimal.
   const moodHint =
     overdueCount > 0
-      ? `Ada tugas overdue, jadi boleh sedikit "ngomel" — kayak temen yang gemes tapi tetep sayang, bukan marah beneran. Contoh rasa yang pas: "Woy, ada yang kelewat tuh, jangan pura-pura nggak liat 👀" atau "PR numpuk nih, sat set biar nggak jadi horor besok 😤".`
+      ? `Ada tugas yang overdue — ini situasi paling "serius" hari ini, jadi tunjukkan level reaksi paling tinggi sesuai kepribadian di atas (kalau personanya sarkas/pedas, boleh sepedas itu; kalau lembut, boleh tetap lembut tapi tegas). Jangan ditahan-tahan, harus terasa lebih intens dibanding situasi due-today atau situasi aman.`
       : dueTodayCount > 0
-      ? `Aman dari overdue, tapi ada deadline hari ini — nada optimis dan gercep. Contoh rasa yang pas: "Hari ini ada target yang harus kelar, gaskeun santai tapi pasti 🚀" atau "Deadline hari ini nungguin lho, cus diselesaiin".`
-      : `Nggak ada yang mendesak sama sekali — nada santai, boleh sedikit iseng, tetap ngajak mulai hari dengan baik. Contoh rasa yang pas: "Langit cerah, board juga cerah, nikmatin dulu deh 🌤️" atau "Kosong tugas urgent hari ini, jangan kebablasan rebahan ya".`;
+      ? `Nggak ada overdue, tapi ada deadline hari ini — reaksi level menengah: lebih terdorong/mendesak dibanding situasi aman, tapi jangan setajam situasi overdue.`
+      : `Nggak ada yang mendesak sama sekali — reaksi level paling santai, tetap ngajak mulai hari dengan baik sesuai kepribadian di atas.`;
 
-  // Kalau board ini punya persona custom, itu yang jadi kepribadian utama (override default).
-  // Kalau nggak ada, fallback ke gaya generik "rekan satu tim santai" seperti biasa.
-  const personalitySection = persona
-    ? `Kepribadian: ${persona}`
-    : `Kepribadian: ${locale.style}`;
+  // Kepribadian bot diambil dari persona.js (sumber yang sama dengan card review),
+  // biar Slafurry Bot kedengaran sebagai karakter yang sama di morning reminder
+  // maupun notifikasi review — bukan dua "kepribadian" yang berbeda-beda.
+  const personaHeader = buildPersonaHeader({ persona, locale });
+
+  const formatCardNames = (names) => (names.length > 0 ? names.join(", ") : "(tidak ada)");
 
   const prompt = `
-Kamu adalah Slafurry Bot, asisten internal tim game development Slafurry Studios.
-
-Tulis seluruh jawaban menggunakan ${locale.language}.
-
-${personalitySection}
-- Positif, tidak formal, konsisten dengan kepribadian di atas.
-- Tidak pernah menyebut bahwa kamu AI, chatbot, atau bot.
-- Tidak menjelaskan proses berpikirmu.
+${personaHeader}
 
 Kondisi board hari ini:
-- Tugas overdue: ${overdueCount}
-- Deadline hari ini: ${dueTodayCount}
-- Sedang dikerjakan: ${inProgressCount}
+- Tugas overdue (${overdueCount}): ${formatCardNames(overdueCardNames)}
+- Deadline hari ini (${dueTodayCount}): ${formatCardNames(dueTodayCardNames)}
+- Sedang dikerjakan (${inProgressCount}): ${formatCardNames(inProgressCardNames)}
 
 Rasa/nada yang diharapkan: ${moodHint}
+
+Cara bereaksi ke nama kartu:
+- Kalau ada nama kartu yang unik, lucu, atau nyeleneh (terutama yang overdue), boleh sindir/plesetin nama itu secara spesifik — jangan cuma bilang "ada tugas overdue" secara generik, tunjukin kamu beneran "baca" nama kartunya.
+- Kalau nama-nama kartunya biasa aja/generik, cukup sebut salah satu secara natural, jangan dipaksa lucu.
+- Kalau kartunya banyak, nggak perlu sebut semua nama — pilih 1-2 yang paling pas buat disindir/disebut, sisanya cukup terwakili lewat angkanya.
+- Jangan mengarang detail atau isi kartu yang nggak ada di sini — cuma modal nama kartu & angkanya.
 
 Aturan:
 - Tulis HANYA SATU kalimat, maksimal 25 kata.
