@@ -23,7 +23,7 @@ async function main() {
   });
 
   const embed = {
-    title: "💬 Pesan dari GitHub Actions",
+    title: "💬 Informasi Penting",
     color: 0x5865f2,
     description: message,
     timestamp: new Date().toISOString(),
