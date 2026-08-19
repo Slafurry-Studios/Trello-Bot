@@ -16,6 +16,29 @@ const {
   CRON_TIMEZONE,
 } = process.env;
 
+/**
+ * Helper untuk memotong teks list kartu agar tidak melebih batas 1024 karakter per field Discord
+ */
+function truncateFieldValue(lines, maxChars = 1000) {
+  if (!lines || lines.length === 0) return "-";
+  
+  let result = [];
+  let currentLength = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (currentLength + line.length + 1 > maxChars) {
+      const remaining = lines.length - i;
+      result.push(`*...dan ${remaining} kartu lainnya.*`);
+      break;
+    }
+    result.push(line);
+    currentLength += line.length + 1; // +1 untuk newline
+  }
+
+  return result.join("\n");
+}
+
 async function buildMorningEmbed({ boardId, listId, persona, lang } = {}) {
   const trelloParams = {
     apiKey: TRELLO_API_KEY,
@@ -36,39 +59,38 @@ async function buildMorningEmbed({ boardId, listId, persona, lang } = {}) {
   const fields = [];
 
   if (overdue.length > 0) {
+    const lines = overdue.map((c) => formatCardLine(c, listNameById, timezone));
     fields.push({
       name: `⚠️ Overdue (${overdue.length})`,
-      value: overdue.map((c) => formatCardLine(c, listNameById, timezone)).join("\n"),
+      value: truncateFieldValue(lines),
     });
   }
 
   if (dueToday.length > 0) {
+    const lines = dueToday.map((c) => formatCardLine(c, listNameById, timezone));
     fields.push({
       name: `🔔 Deadline Hari Ini (${dueToday.length})`,
-      value: dueToday.map((c) => formatCardLine(c, listNameById, timezone)).join("\n"),
+      value: truncateFieldValue(lines),
     });
   }
 
   if (inProgress.length > 0) {
+    const lines = inProgress.map((c) => formatCardLine(c, listNameById, timezone));
     fields.push({
       name: `🛠️ Sedang Dikerjakan (${inProgress.length})`,
-      value: inProgress.map((c) => formatCardLine(c, listNameById, timezone)).join("\n"),
+      value: truncateFieldValue(lines),
     });
   }
 
   console.log(
-    `Trello morning report: board=${TRELLO_BOARD_ID} list=${TRELLO_LIST_ID || "all"} ` +
+    `Trello morning report: board=${boardId || TRELLO_BOARD_ID} list=${listId || TRELLO_LIST_ID || "all"} ` +
       `timezone=${timezone} overdue=${overdue.length} dueToday=${dueToday.length} inProgress=${inProgress.length}`
   );
 
-  // Kirim angka aktual + nama-nama kartu ke Gemini, biar tone-nya otomatis berubah
-  // (galak kalau ada overdue) DAN dia punya bahan buat nyeleneh/plesetin nama kartu
-  // spesifik — sama kayak yang dilakuin di notifikasi review, bukan cuma modal angka.
-  // Dibatasi biar prompt nggak kepanjangan kalau kartunya banyak banget.
   const MAX_CARD_NAMES = 8;
   const toCardNames = (list) => list.slice(0, MAX_CARD_NAMES).map((c) => c.name);
 
-  const greeting = await getMorningGreeting({
+  let greeting = await getMorningGreeting({
     apiKey: GEMINI_API_KEY,
     dueTodayCount: dueToday.length,
     overdueCount: overdue.length,
@@ -79,6 +101,11 @@ async function buildMorningEmbed({ boardId, listId, persona, lang } = {}) {
     lang: lang || REMINDER_LANG || "id",
     persona,
   });
+
+  // Jaga-jaga jika greeting dari Gemini melebihi batas 3900 karakter Discord description
+  if (greeting && greeting.length > 3900) {
+    greeting = greeting.slice(0, 3900) + "...";
+  }
 
   const baseDescription =
     fields.length === 0 ? "Tidak ada kartu aktif hari ini. Aman! 🎉" : undefined;
@@ -93,7 +120,6 @@ async function buildMorningEmbed({ boardId, listId, persona, lang } = {}) {
 }
 
 async function sendMorningReport() {
-  // Coba baca BOARD_TARGETS untuk mengirim laporan ke beberapa board/target
   let boardTargets = null;
   if (process.env.BOARD_TARGETS) {
     try {
@@ -105,8 +131,6 @@ async function sendMorningReport() {
   }
 
   if (boardTargets && Object.keys(boardTargets).length > 0) {
-    // Kalau TARGET_BOARD_ID diisi (biasanya dari input manual "Run workflow"),
-    // cuma proses board itu aja — biar testing 1 divisi nggak nge-spam divisi lain.
     const targetBoardId = process.env.TARGET_BOARD_ID?.trim();
     const entries = targetBoardId
       ? Object.entries(boardTargets).filter(([boardId]) => boardId === targetBoardId)
@@ -134,24 +158,28 @@ async function sendMorningReport() {
         }
 
         await axios.post(url, { embeds: [embed] });
-        console.log(`Laporan pagi untuk board ${boardId} terkirim ke ${url}`);
+        console.log(`Laporan pagi untuk board ${boardId} terkirim ke webhook.`);
       } catch (err) {
-        console.error(`Gagal kirim laporan pagi untuk board ${boardId}:`, err.response?.data || err.message);
+        console.error(
+          `Gagal kirim laporan pagi untuk board ${boardId}:`,
+          JSON.stringify(err.response?.data || err.message)
+        );
       }
     }
   } else {
-    // Fallback: perilaku lama (single webhook + single board dari env)
     try {
       const embed = await buildMorningEmbed();
       await axios.post(DISCORD_WEBHOOK_URL, { embeds: [embed] });
       console.log("Laporan pagi terkirim:", new Date().toISOString());
     } catch (err) {
-      console.error("Gagal kirim laporan pagi:", err.response?.data || err.message);
+      console.error(
+        "Gagal kirim laporan pagi:",
+        JSON.stringify(err.response?.data || err.message)
+      );
     }
   }
 }
 
-// Kalau dijalankan dengan `node index.js --now`, langsung kirim sekali (buat testing)
 if (process.argv.includes("--now")) {
   sendMorningReport().then(() => process.exit(0));
 } else {
