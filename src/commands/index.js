@@ -17,26 +17,38 @@ const {
 } = process.env;
 
 /**
- * Helper untuk memotong teks list kartu agar tidak melebih batas 1024 karakter per field Discord
+ * Membagi daftar baris kartu ke dalam beberapa field Discord agar tidak menembus batas 1024 karakter/field
  */
-function truncateFieldValue(lines, maxChars = 1000) {
-  if (!lines || lines.length === 0) return "-";
-  
-  let result = [];
+function pushChunkedFields(fields, title, totalCount, lines, maxChars = 1000) {
+  if (!lines || lines.length === 0) return;
+
+  const chunks = [];
+  let currentChunk = [];
   let currentLength = 0;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (currentLength + line.length + 1 > maxChars) {
-      const remaining = lines.length - i;
-      result.push(`*...dan ${remaining} kartu lainnya.*`);
-      break;
+  for (const line of lines) {
+    if (currentLength + line.length + 1 > maxChars && currentChunk.length > 0) {
+      chunks.push(currentChunk.join("\n"));
+      currentChunk = [];
+      currentLength = 0;
     }
-    result.push(line);
+    currentChunk.push(line);
     currentLength += line.length + 1; // +1 untuk newline
   }
 
-  return result.join("\n");
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk.join("\n"));
+  }
+
+  // Jika cuma 1 chunk, pakai judul standar.
+  // Jika terbagi banyak chunk, tambahkan indikator bagian (1/2, 2/2, dst).
+  chunks.forEach((chunk, index) => {
+    const pageSuffix = chunks.length > 1 ? ` (${index + 1}/${chunks.length})` : "";
+    fields.push({
+      name: `${title} (${totalCount})${pageSuffix}`,
+      value: chunk,
+    });
+  });
 }
 
 async function buildMorningEmbed({ boardId, listId, persona, lang } = {}) {
@@ -60,26 +72,17 @@ async function buildMorningEmbed({ boardId, listId, persona, lang } = {}) {
 
   if (overdue.length > 0) {
     const lines = overdue.map((c) => formatCardLine(c, listNameById, timezone));
-    fields.push({
-      name: `⚠️ Overdue (${overdue.length})`,
-      value: truncateFieldValue(lines),
-    });
+    pushChunkedFields(fields, "⚠️ Overdue", overdue.length, lines);
   }
 
   if (dueToday.length > 0) {
     const lines = dueToday.map((c) => formatCardLine(c, listNameById, timezone));
-    fields.push({
-      name: `🔔 Deadline Hari Ini (${dueToday.length})`,
-      value: truncateFieldValue(lines),
-    });
+    pushChunkedFields(fields, "🔔 Deadline Hari Ini", dueToday.length, lines);
   }
 
   if (inProgress.length > 0) {
     const lines = inProgress.map((c) => formatCardLine(c, listNameById, timezone));
-    fields.push({
-      name: `🛠️ Sedang Dikerjakan (${inProgress.length})`,
-      value: truncateFieldValue(lines),
-    });
+    pushChunkedFields(fields, "🛠️ Sedang Dikerjakan", inProgress.length, lines);
   }
 
   console.log(
